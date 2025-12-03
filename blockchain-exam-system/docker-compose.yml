@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  # ===================== 数据库 =====================
+  postgres:
+    image: postgres:15-alpine
+    container_name: exam-postgres
+    environment:
+      POSTGRES_DB: exam_system
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===================== Redis =====================
+  redis:
+    image: redis:7-alpine
+    container_name: exam-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # ===================== IPFS =====================
+  ipfs:
+    image: ipfs/kubo:latest
+    container_name: exam-ipfs
+    ports:
+      - "4001:4001"  # P2P
+      - "5001:5001"  # API
+      - "8080:8080"  # Gateway
+    volumes:
+      - ipfs_data:/data/ipfs
+    environment:
+      - IPFS_PROFILE=server
+
+  # ===================== Django 后端 =====================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: exam-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=False
+      - DB_HOST=postgres
+      - REDIS_HOST=redis
+      - IPFS_HOST=ipfs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      ipfs:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+
+  # ===================== Celery Worker =====================
+  celery:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: exam-celery
+    command: celery -A exam_system worker -l info
+    environment:
+      - DB_HOST=postgres
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      - backend
+      - redis
+    volumes:
+      - ./backend:/app
+
+  # ===================== React 前端 =====================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: exam-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+    depends_on:
+      - backend
+
+  # ===================== Nginx 反向代理 =====================
+  nginx:
+    image: nginx:alpine
+    container_name: exam-nginx
+    ports:
+      - "9080:80"
+      - "9443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - static_volume:/var/www/static
+      - media_volume:/var/www/media
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  postgres_data:
+  redis_data:
+  ipfs_data:
+  static_volume:
+  media_volume:

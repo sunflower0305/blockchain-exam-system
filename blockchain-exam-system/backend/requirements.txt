@@ -1,0 +1,42 @@
+# Django Framework
+Django>=4.2,<5.0
+djangorestframework>=3.14.0
+django-cors-headers>=4.3.0
+django-filter>=23.5
+
+# Database
+psycopg2-binary>=2.9.9
+
+# Authentication
+djangorestframework-simplejwt>=5.3.0
+PyJWT>=2.8.0
+
+# Cryptography - 国密算法
+gmssl>=3.2.2
+pycryptodome>=3.19.0
+cryptography>=41.0.0
+
+# IPFS
+ipfshttpclient>=0.8.0a2
+
+# Hyperledger Fabric SDK
+# Note: Use fabric-sdk-py for Python Fabric integration
+# fabric-sdk-py>=1.0.0
+
+# Async & Background Tasks
+celery>=5.3.0
+redis>=5.0.0
+
+# Utils
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+python-dateutil>=2.8.2
+
+# Server
+gunicorn>=21.2.0
+
+# Development
+pytest>=7.4.0
+pytest-django>=4.7.0
+black>=23.12.0
+flake8>=6.1.0
