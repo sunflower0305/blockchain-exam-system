@@ -54,7 +54,15 @@ class ExamViewSet(viewsets.ModelViewSet):
         return Exam.objects.none()
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        # 如果创建时指定了教师，自动将状态设为 REQUESTING
+        assigned_teacher = serializer.validated_data.get('assigned_teacher')
+        if assigned_teacher:
+            serializer.save(
+                created_by=self.request.user,
+                status=Exam.Status.REQUESTING
+            )
+        else:
+            serializer.save(created_by=self.request.user)
 
     @action(detail=True, methods=['post'])
     def assign_teacher(self, request, pk=None):
@@ -112,6 +120,30 @@ class ExamViewSet(viewsets.ModelViewSet):
         exam.save()
 
         return Response({"message": "试卷已批准"})
+
+    @action(detail=True, methods=['post'])
+    def set_ready(self, request, pk=None):
+        """COE设置考试为待考试状态"""
+        exam = self.get_object()
+
+        # 验证权限
+        if request.user.role not in ['admin', 'coe']:
+            return Response(
+                {"error": "无权限执行此操作"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 验证状态
+        if exam.status != Exam.Status.APPROVED:
+            return Response(
+                {"error": "只有已批准的考试才能设为待考试状态"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        exam.status = Exam.Status.READY
+        exam.save()
+
+        return Response({"message": "考试已设为待考试状态"})
 
 
 class ExamPaperViewSet(viewsets.ModelViewSet):

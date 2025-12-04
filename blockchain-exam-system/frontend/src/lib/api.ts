@@ -119,17 +119,22 @@ export const examApi = {
     return response.data;
   },
 
-  assignTeacher: async (examId: string, teacherId: number) => {
+  assignTeacher: async (examId: string, teacherId: string) => {
     const response = await api.post(`/exams/exams/${examId}/assign_teacher/`, {
       teacher_id: teacherId,
     });
     return response.data;
   },
 
-  approveExam: async (examId: string, paperId: string) => {
+  approvePaper: async (examId: string, paperId: string) => {
     const response = await api.post(`/exams/exams/${examId}/approve/`, {
       paper_id: paperId,
     });
+    return response.data;
+  },
+
+  setReady: async (examId: string) => {
+    const response = await api.post(`/exams/exams/${examId}/set_ready/`);
     return response.data;
   },
 };
@@ -252,6 +257,20 @@ export const subjectApi = {
 
   deleteSubject: async (id: number) => {
     const response = await api.delete(`/exams/subjects/${id}/`);
+    return response.data;
+  },
+};
+
+// ===================== 用户 API =====================
+
+export const userApi = {
+  getUsers: async (params?: { role?: string; page?: number }) => {
+    const response = await api.get('/users/', { params });
+    return response.data;
+  },
+
+  getUser: async (id: string) => {
+    const response = await api.get(`/users/${id}/`);
     return response.data;
   },
 };

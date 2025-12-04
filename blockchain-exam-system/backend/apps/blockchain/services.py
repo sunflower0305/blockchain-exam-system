@@ -390,12 +390,38 @@ class BlockchainService:
         """
         paper_info = self.get_paper(paper_id)
 
+        # 如果区块链中找不到，尝试从数据库获取（模拟模式下可能数据在重启后丢失）
         if not paper_info:
-            return {
-                'valid': False,
-                'paper_info': None,
-                'message': '试卷未在区块链上找到'
-            }
+            try:
+                from apps.exams.models import ExamPaper
+                paper = ExamPaper.objects.get(id=paper_id)
+
+                # 检查是否已上链
+                if paper.blockchain_tx_id:
+                    paper_info = {
+                        'paper_id': str(paper.id),
+                        'exam_id': str(paper.exam.id),
+                        'ipfs_hash': paper.ipfs_hash,
+                        'file_hash': paper.file_hash,
+                        'status': paper.status,
+                        'blockchain_tx_id': paper.blockchain_tx_id,
+                        'block_number': paper.block_number,
+                        'created_at': paper.created_at.isoformat(),
+                        'source': 'database'
+                    }
+                else:
+                    return {
+                        'valid': False,
+                        'paper_info': None,
+                        'message': '试卷尚未上链'
+                    }
+            except Exception as e:
+                logger.warning(f"从数据库获取试卷失败: {e}")
+                return {
+                    'valid': False,
+                    'paper_info': None,
+                    'message': '试卷未找到'
+                }
 
         stored_hash = paper_info.get('file_hash', '')
         is_valid = stored_hash == expected_hash

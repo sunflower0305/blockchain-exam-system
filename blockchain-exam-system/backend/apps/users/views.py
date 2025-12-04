@@ -32,6 +32,14 @@ class UserViewSet(viewsets.ModelViewSet):
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
+    def get_queryset(self):
+        qs = self.queryset
+        # 支持按角色过滤
+        role = self.request.query_params.get('role')
+        if role:
+            qs = qs.filter(role=role)
+        return qs
+
     @action(detail=False, methods=['get'])
     def me(self, request):
         """获取当前用户信息"""

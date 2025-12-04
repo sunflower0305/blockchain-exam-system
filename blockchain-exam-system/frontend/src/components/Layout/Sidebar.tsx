@@ -35,7 +35,7 @@ const navigation: NavItem[] = [
   { name: '考试管理', href: '/dashboard/exams', icon: ClipboardDocumentListIcon, roles: ['admin', 'coe'] },
   { name: '我的任务', href: '/dashboard/my-tasks', icon: DocumentTextIcon, roles: ['teacher'] },
   { name: '试卷上传', href: '/dashboard/upload', icon: ArrowUpTrayIcon, roles: ['teacher'] },
-  { name: '试卷解密', href: '/dashboard/decrypt', icon: ShieldCheckIcon, roles: ['superintendent'] },
+  { name: '监考接收', href: '/dashboard/proctor', icon: ShieldCheckIcon, roles: ['superintendent', 'admin', 'coe'] },
   { name: '科目管理', href: '/dashboard/subjects', icon: AcademicCapIcon, roles: ['admin', 'coe'] },
   { name: '用户管理', href: '/dashboard/users', icon: UserGroupIcon, roles: ['admin'] },
   { name: '密钥管理', href: '/dashboard/keys', icon: KeyIcon },
