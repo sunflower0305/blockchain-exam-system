@@ -178,6 +178,21 @@ export const blockchainApi = {
     return response.data;
   },
 
+  getStats: async () => {
+    const response = await api.get('/blockchain/stats/');
+    return response.data;
+  },
+
+  getRecords: async (params?: { page?: number; page_size?: number; search?: string }) => {
+    const response = await api.get('/blockchain/records/', { params });
+    return response.data;
+  },
+
+  getPapers: async (params?: { page_size?: number; bookmark?: string }) => {
+    const response = await api.get('/blockchain/papers/', { params });
+    return response.data;
+  },
+
   getPaperBlockchainInfo: async (paperId: string) => {
     const response = await api.get(`/blockchain/paper/${paperId}/`);
     return response.data;
@@ -185,6 +200,11 @@ export const blockchainApi = {
 
   getPaperHistory: async (paperId: string) => {
     const response = await api.get(`/blockchain/paper/${paperId}/history/`);
+    return response.data;
+  },
+
+  getPaperAccessLogs: async (paperId: string) => {
+    const response = await api.get(`/blockchain/paper/${paperId}/access-logs/`);
     return response.data;
   },
 

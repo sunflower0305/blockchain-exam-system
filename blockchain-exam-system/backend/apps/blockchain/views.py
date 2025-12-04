@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.core.paginator import Paginator
 
-from .services import BlockchainService, IPFSService
+from .services import BlockchainService, IPFSService, get_blockchain_service, get_ipfs_service
 from apps.exams.models import ExamPaper, PaperAccessLog
 
 
@@ -16,7 +16,7 @@ class AllBlockchainRecordsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """获取所有已上链的试卷记��"""
+        """获取所有已上链的试卷记录"""
         page = int(request.query_params.get('page', 1))
         page_size = int(request.query_params.get('page_size', 10))
         search = request.query_params.get('search', '')
@@ -121,31 +121,54 @@ class BlockchainStatsView(APIView):
                 action=action[0]
             ).count()
 
+        # 获取区块链网络信息
+        blockchain_service = get_blockchain_service()
+        network_info = blockchain_service.get_network_info()
+
         return Response({
             'total_on_chain': total_on_chain,
             'total_access_logs': total_logs,
             'action_stats': action_stats,
+            'ledger_height': network_info.get('ledger_height', 0),
+            'network_mode': network_info.get('mode', 'unknown'),
         })
 
 
 class BlockchainStatusView(APIView):
-    """区块链状态检查"""
+    """区块链和IPFS状态检查"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        blockchain_service = BlockchainService()
-        ipfs_service = IPFSService()
+        """获取区块链和IPFS的详细状态"""
+        blockchain_service = get_blockchain_service()
+        ipfs_service = get_ipfs_service()
+
+        # 获取区块链网络信息
+        blockchain_info = blockchain_service.get_network_info()
+
+        # 获取IPFS节点信息
+        ipfs_info = ipfs_service.get_node_info()
 
         return Response({
             'blockchain': {
-                'connected': True,  # 实际需要检查连接状态
-                'channel': blockchain_service.config.get('CHANNEL_NAME'),
-                'chaincode': blockchain_service.config.get('CHAINCODE_NAME'),
+                'connected': blockchain_info.get('connected', False),
+                'mode': blockchain_info.get('mode', 'unknown'),
+                'network': blockchain_info.get('network', 'Hyperledger Fabric'),
+                'channel': blockchain_info.get('channel', ''),
+                'chaincode': blockchain_info.get('chaincode', ''),
+                'msp_id': blockchain_info.get('msp_id', ''),
+                'peer_endpoint': blockchain_info.get('peer_endpoint', ''),
+                'ledger_height': blockchain_info.get('ledger_height', 0),
+                'lastSync': blockchain_info.get('last_sync', ''),
             },
             'ipfs': {
-                'connected': True,
-                'host': ipfs_service.host,
-                'port': ipfs_service.port,
+                'connected': ipfs_info.get('connected', False),
+                'mode': ipfs_info.get('mode', 'unknown'),
+                'host': f"{ipfs_info.get('host', '')}:{ipfs_info.get('port', '')}",
+                'gateway': f"{ipfs_info.get('host', '')}:8080",
+                'version': ipfs_info.get('version', ''),
+                'peer_id': ipfs_info.get('peer_id', ''),
+                'storage': '可用' if ipfs_info.get('connected') else '不可用',
             }
         })
 
@@ -156,14 +179,29 @@ class PaperBlockchainView(APIView):
 
     def get(self, request, paper_id):
         """获取试卷的区块链信息"""
-        blockchain_service = BlockchainService()
+        blockchain_service = get_blockchain_service()
         paper_info = blockchain_service.get_paper(paper_id)
 
         if not paper_info:
-            return Response(
-                {"error": "区块链上未找到该试卷"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            # 尝试从数据库获取
+            try:
+                paper = ExamPaper.objects.get(id=paper_id)
+                paper_info = {
+                    'paper_id': str(paper.id),
+                    'exam_id': str(paper.exam.id),
+                    'ipfs_hash': paper.ipfs_hash,
+                    'file_hash': paper.file_hash,
+                    'status': paper.status,
+                    'blockchain_tx_id': paper.blockchain_tx_id,
+                    'block_number': paper.block_number,
+                    'created_at': paper.created_at.isoformat(),
+                    'source': 'database'
+                }
+            except ExamPaper.DoesNotExist:
+                return Response(
+                    {"error": "试卷未找到"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
         return Response(paper_info)
 
@@ -174,8 +212,28 @@ class PaperHistoryView(APIView):
 
     def get(self, request, paper_id):
         """获取试卷的区块链历史"""
-        blockchain_service = BlockchainService()
+        blockchain_service = get_blockchain_service()
         history = blockchain_service.get_paper_history(paper_id)
+
+        # 如果区块链没有历史，从数据库补充
+        if not history:
+            try:
+                paper = ExamPaper.objects.get(id=paper_id)
+                history = [{
+                    'tx_id': paper.blockchain_tx_id or '',
+                    'timestamp': paper.created_at.isoformat(),
+                    'is_delete': False,
+                    'paper': {
+                        'paper_id': str(paper.id),
+                        'status': paper.status,
+                        'ipfs_hash': paper.ipfs_hash,
+                        'file_hash': paper.file_hash,
+                    },
+                    'source': 'database'
+                }]
+            except ExamPaper.DoesNotExist:
+                pass
+
         return Response(history)
 
 
@@ -194,11 +252,27 @@ class VerifyPaperView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        blockchain_service = BlockchainService()
-        is_valid = blockchain_service.verify_paper(paper_id, expected_hash)
+        blockchain_service = get_blockchain_service()
+        result = blockchain_service.verify_paper(paper_id, expected_hash)
 
         return Response({
             'paper_id': paper_id,
-            'is_valid': is_valid,
-            'message': '验证通过' if is_valid else '验证失败'
+            'is_valid': result.get('valid', False),
+            'message': result.get('message', ''),
+            'paper_info': result.get('paper_info'),
         })
+
+
+class BlockchainPapersView(APIView):
+    """从区块链获取试卷列表"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """获取区块链上的所有试卷"""
+        page_size = int(request.query_params.get('page_size', 10))
+        bookmark = request.query_params.get('bookmark', '')
+
+        blockchain_service = get_blockchain_service()
+        result = blockchain_service.get_all_papers(page_size, bookmark)
+
+        return Response(result)

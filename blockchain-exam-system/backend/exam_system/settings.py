@@ -137,14 +137,19 @@ CORS_ALLOW_CREDENTIALS = True
 # IPFS Configuration
 IPFS_HOST = os.getenv('IPFS_HOST', '127.0.0.1')
 IPFS_PORT = int(os.getenv('IPFS_PORT', '5001'))
+IPFS_USE_MOCK = os.getenv('IPFS_USE_MOCK', 'False').lower() == 'true'
 
 # Hyperledger Fabric Configuration
+FABRIC_USE_MOCK = os.getenv('FABRIC_USE_MOCK', 'True').lower() == 'true'
 FABRIC_CONFIG = {
     'NETWORK_CONFIG': os.getenv('FABRIC_NETWORK_CONFIG', '/etc/hyperledger/fabric/network.json'),
+    'CONNECTION_PROFILE': os.getenv('FABRIC_CONNECTION_PROFILE', '/app/fabric/config/connection-profile.json'),
     'CHANNEL_NAME': os.getenv('FABRIC_CHANNEL', 'examchannel'),
     'CHAINCODE_NAME': os.getenv('FABRIC_CHAINCODE', 'exam-chaincode'),
     'MSP_ID': os.getenv('FABRIC_MSP_ID', 'Org1MSP'),
     'PEER_ENDPOINT': os.getenv('FABRIC_PEER_ENDPOINT', 'localhost:7051'),
+    'USER_CERT': os.getenv('FABRIC_USER_CERT', '/app/fabric/organizations/peerOrganizations/org1.exam.com/users/Admin@org1.exam.com/msp/signcerts/Admin@org1.exam.com-cert.pem'),
+    'USER_KEY': os.getenv('FABRIC_USER_KEY', '/app/fabric/organizations/peerOrganizations/org1.exam.com/users/Admin@org1.exam.com/msp/keystore/priv_sk'),
 }
 
 # Celery Configuration

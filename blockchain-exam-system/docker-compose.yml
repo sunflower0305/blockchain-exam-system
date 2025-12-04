@@ -52,8 +52,17 @@ services:
     environment:
       - DEBUG=False
       - DB_HOST=postgres
+      - DB_NAME=exam_system
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
       - REDIS_HOST=redis
+      - CELERY_BROKER_URL=redis://redis:6379/0
       - IPFS_HOST=ipfs
+      - IPFS_PORT=5001
+      - IPFS_USE_MOCK=False
+      - FABRIC_USE_MOCK=True
+      - FABRIC_CHANNEL=examchannel
+      - FABRIC_CHAINCODE=exam-chaincode
     depends_on:
       postgres:
         condition: service_healthy
@@ -63,6 +72,7 @@ services:
         condition: service_started
     volumes:
       - ./backend:/app
+      - ./fabric:/app/fabric
       - static_volume:/app/staticfiles
       - media_volume:/app/media
 

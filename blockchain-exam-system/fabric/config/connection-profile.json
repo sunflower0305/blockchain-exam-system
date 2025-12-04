@@ -1,0 +1,76 @@
+{
+    "name": "exam-network",
+    "version": "1.0.0",
+    "client": {
+        "organization": "Org1",
+        "connection": {
+            "timeout": {
+                "peer": {
+                    "endorser": "300"
+                }
+            }
+        }
+    },
+    "organizations": {
+        "Org1": {
+            "mspid": "Org1MSP",
+            "peers": [
+                "peer0.org1.exam.com"
+            ],
+            "certificateAuthorities": [
+                "ca.org1.exam.com"
+            ]
+        }
+    },
+    "peers": {
+        "peer0.org1.exam.com": {
+            "url": "grpcs://localhost:7051",
+            "tlsCACerts": {
+                "path": "/app/fabric/organizations/peerOrganizations/org1.exam.com/peers/peer0.org1.exam.com/tls/ca.crt"
+            },
+            "grpcOptions": {
+                "ssl-target-name-override": "peer0.org1.exam.com",
+                "hostnameOverride": "peer0.org1.exam.com"
+            }
+        }
+    },
+    "certificateAuthorities": {
+        "ca.org1.exam.com": {
+            "url": "https://localhost:7054",
+            "caName": "ca-org1",
+            "tlsCACerts": {
+                "path": "/app/fabric/organizations/fabric-ca/org1/ca-cert.pem"
+            },
+            "httpOptions": {
+                "verify": false
+            }
+        }
+    },
+    "orderers": {
+        "orderer.exam.com": {
+            "url": "grpcs://localhost:7050",
+            "tlsCACerts": {
+                "path": "/app/fabric/organizations/ordererOrganizations/exam.com/orderers/orderer.exam.com/tls/ca.crt"
+            },
+            "grpcOptions": {
+                "ssl-target-name-override": "orderer.exam.com",
+                "hostnameOverride": "orderer.exam.com"
+            }
+        }
+    },
+    "channels": {
+        "examchannel": {
+            "orderers": [
+                "orderer.exam.com"
+            ],
+            "peers": {
+                "peer0.org1.exam.com": {
+                    "endorsingPeer": true,
+                    "chaincodeQuery": true,
+                    "ledgerQuery": true,
+                    "eventSource": true
+                }
+            }
+        }
+    }
+}

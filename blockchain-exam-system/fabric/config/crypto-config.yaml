@@ -1,0 +1,24 @@
+# Hyperledger Fabric 加密材料配置
+# 用于 cryptogen 工具生成证书
+
+OrdererOrgs:
+  - Name: Orderer
+    Domain: exam.com
+    EnableNodeOUs: true
+    Specs:
+      - Hostname: orderer
+        SANS:
+          - localhost
+          - 127.0.0.1
+
+PeerOrgs:
+  - Name: Org1
+    Domain: org1.exam.com
+    EnableNodeOUs: true
+    Template:
+      Count: 1
+      SANS:
+        - localhost
+        - 127.0.0.1
+    Users:
+      Count: 1
