@@ -52,14 +52,22 @@ class IPFSService:
             else:
                 try:
                     import ipfshttpclient
+                    import socket
+
+                    # 解析主机名为 IP 地址（支持 Docker 网络）
+                    try:
+                        resolved_host = socket.gethostbyname(self.host)
+                    except socket.gaierror:
+                        resolved_host = self.host
+
                     self._client = ipfshttpclient.connect(
-                        f'/ip4/{self.host}/tcp/{self.port}',
+                        f'/ip4/{resolved_host}/tcp/{self.port}',
                         timeout=30
                     )
                     # 测试连接
                     self._client.id()
                     self._connected = True
-                    logger.info(f"IPFS 连接成功: {self.host}:{self.port}")
+                    logger.info(f"IPFS 连接成功: {self.host}({resolved_host}):{self.port}")
                 except Exception as e:
                     logger.warning(f"IPFS 连接失败，使用模拟客户端: {e}")
                     self._client = MockIPFSClient()
@@ -240,54 +248,18 @@ class BlockchainService:
             return self._gateway
 
         try:
-            # 尝试使用 fabric-gateway SDK
-            from fabric_gateway import Gateway, GatewayBuilder
-            from grpc import aio
-
-            # 加载连接配置
-            connection_profile_path = self.config.get(
-                'CONNECTION_PROFILE',
-                '/app/fabric/config/connection-profile.json'
-            )
-
-            with open(connection_profile_path, 'r') as f:
-                connection_profile = json.load(f)
-
-            # 加载用户证书
-            cert_path = self.config.get(
-                'USER_CERT',
-                '/app/fabric/organizations/peerOrganizations/org1.exam.com/users/Admin@org1.exam.com/msp/signcerts/Admin@org1.exam.com-cert.pem'
-            )
-            key_path = self.config.get(
-                'USER_KEY',
-                '/app/fabric/organizations/peerOrganizations/org1.exam.com/users/Admin@org1.exam.com/msp/keystore/priv_sk'
-            )
-
-            with open(cert_path, 'rb') as f:
-                certificate = f.read()
-            with open(key_path, 'rb') as f:
-                private_key = f.read()
-
-            # 创建 Gateway 连接
-            self._gateway = RealFabricGateway(
-                connection_profile=connection_profile,
-                certificate=certificate,
-                private_key=private_key,
-                msp_id=self.config.get('MSP_ID', 'Org1MSP'),
+            # 使用 CLI 方式连接 Fabric
+            self._gateway = CLIFabricGateway(
                 channel_name=self.config.get('CHANNEL_NAME', 'examchannel'),
                 chaincode_name=self.config.get('CHAINCODE_NAME', 'exam-chaincode')
             )
-            self._connected = True
-            logger.info("Fabric Gateway 连接成功")
+            # 测试连接
+            if self._gateway.test_connection():
+                self._connected = True
+                logger.info("Fabric CLI Gateway 连接成功")
+            else:
+                raise Exception("Fabric CLI 连接测试失败")
 
-        except ImportError:
-            logger.warning("fabric-gateway SDK 未安装，使用模拟客户端")
-            self._gateway = MockFabricGateway()
-            self._connected = True
-        except FileNotFoundError as e:
-            logger.warning(f"Fabric 配置文件未找到: {e}，使用模拟客户端")
-            self._gateway = MockFabricGateway()
-            self._connected = True
         except Exception as e:
             logger.warning(f"Fabric 连接失败: {e}，使用模拟客户端")
             self._gateway = MockFabricGateway()
@@ -308,6 +280,20 @@ class BlockchainService:
         gateway = self._get_gateway()
 
         if isinstance(gateway, MockFabricGateway):
+            # 尝试获取真实网络信息（如果可用）
+            try:
+                cli_gateway = CLIFabricGateway(
+                    channel_name=self.config.get('CHANNEL_NAME', 'examchannel'),
+                    chaincode_name=self.config.get('CHAINCODE_NAME', 'exam-chaincode')
+                )
+                if cli_gateway.test_connection():
+                    info = cli_gateway.get_network_info()
+                    info['mode'] = 'mock (Fabric 网络已就绪)'
+                    info['data_storage'] = '模拟存储'
+                    return info
+            except:
+                pass
+
             return {
                 'connected': True,
                 'mode': 'mock',
@@ -488,6 +474,118 @@ class BlockchainService:
         except Exception as e:
             logger.error(f"获取试卷列表失败: {e}")
             return {'papers': [], 'bookmark': ''}
+
+
+class CLIFabricGateway:
+    """通过 Docker CLI 调用 Fabric 网络"""
+
+    def __init__(self, channel_name: str = 'examchannel', chaincode_name: str = 'exam-chaincode'):
+        self.channel_name = channel_name
+        self.chaincode_name = chaincode_name
+        self._tx_counter = 0
+
+    def _exec_peer_command(self, cmd: str) -> tuple:
+        """执行 peer 命令"""
+        import subprocess
+
+        full_cmd = f'docker exec cli bash -c "{cmd}"'
+        try:
+            result = subprocess.run(
+                full_cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            return result.returncode, result.stdout, result.stderr
+        except subprocess.TimeoutExpired:
+            return 1, '', 'Command timeout'
+        except Exception as e:
+            return 1, '', str(e)
+
+    def test_connection(self) -> bool:
+        """测试连接"""
+        code, stdout, stderr = self._exec_peer_command('peer channel list')
+        return code == 0 and self.channel_name in stdout
+
+    def get_ledger_height(self) -> int:
+        """获取账本高度"""
+        cmd = f'peer channel getinfo -c {self.channel_name}'
+        code, stdout, stderr = self._exec_peer_command(cmd)
+        if code == 0:
+            import re
+            # 解析 JSON 格式的输出
+            match = re.search(r'"height":(\d+)', stdout + stderr)
+            if match:
+                return int(match.group(1))
+        return 0
+
+    def invoke_chaincode(self, function: str, args: list) -> Dict[str, Any]:
+        """调用链码（写操作）"""
+        self._tx_counter += 1
+
+        # 构建参数 JSON - 使用单引号包裹整个 JSON
+        args_json = json.dumps({"function": function, "Args": args})
+
+        cmd = f'''peer chaincode invoke \
+          -o orderer.exam.com:7050 \
+          --tls \
+          --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/exam.com/orderers/orderer.exam.com/tls/ca.crt \
+          -C {self.channel_name} \
+          -n {self.chaincode_name} \
+          --peerAddresses peer0.org1.exam.com:7051 \
+          --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/peerOrganizations/org1.exam.com/peers/peer0.org1.exam.com/tls/ca.crt \
+          -c '{args_json}' '''
+
+        code, stdout, stderr = self._exec_peer_command(cmd)
+
+        if code != 0:
+            raise Exception(f"链码调用失败: {stderr}")
+
+        # 解析交易 ID
+        import re
+        tx_match = re.search(r'txid \[([a-f0-9]+)\]', stderr)
+        tx_id = tx_match.group(1) if tx_match else hashlib.sha256(str(self._tx_counter).encode()).hexdigest()
+
+        return {
+            'tx_id': tx_id,
+            'block_number': self.get_ledger_height(),
+            'status': 'SUCCESS'
+        }
+
+    def query_chaincode(self, function: str, args: list) -> Any:
+        """查询链码（读操作）"""
+        args_json = json.dumps({"function": function, "Args": args})
+
+        cmd = f'''peer chaincode query \
+          -C {self.channel_name} \
+          -n {self.chaincode_name} \
+          -c '{args_json}' '''
+
+        code, stdout, stderr = self._exec_peer_command(cmd)
+
+        if code != 0:
+            logger.warning(f"链码查询失败: {stderr}")
+            return None
+
+        try:
+            return json.loads(stdout.strip())
+        except json.JSONDecodeError:
+            return stdout.strip() if stdout.strip() else None
+
+    def get_network_info(self) -> Dict[str, Any]:
+        """获取网络信息"""
+        return {
+            'connected': True,
+            'mode': 'cli',
+            'network': 'Hyperledger Fabric',
+            'channel': self.channel_name,
+            'chaincode': self.chaincode_name,
+            'msp_id': 'Org1MSP',
+            'peer_endpoint': 'peer0.org1.exam.com:7051',
+            'ledger_height': self.get_ledger_height(),
+            'last_sync': datetime.now().isoformat()
+        }
 
 
 class RealFabricGateway:

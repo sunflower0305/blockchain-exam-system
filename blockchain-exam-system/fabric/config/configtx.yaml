@@ -5,7 +5,7 @@ Organizations:
   - &OrdererOrg
     Name: OrdererOrg
     ID: OrdererMSP
-    MSPDir: /organizations/ordererOrganizations/exam.com/msp
+    MSPDir: /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/exam.com/msp
     Policies:
       Readers:
         Type: Signature
@@ -22,7 +22,7 @@ Organizations:
   - &Org1
     Name: Org1MSP
     ID: Org1MSP
-    MSPDir: /organizations/peerOrganizations/org1.exam.com/msp
+    MSPDir: /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/peerOrganizations/org1.exam.com/msp
     Policies:
       Readers:
         Type: Signature
@@ -74,8 +74,8 @@ Orderer: &OrdererDefaults
     Consenters:
       - Host: orderer.exam.com
         Port: 7050
-        ClientTLSCert: /organizations/ordererOrganizations/exam.com/orderers/orderer.exam.com/tls/server.crt
-        ServerTLSCert: /organizations/ordererOrganizations/exam.com/orderers/orderer.exam.com/tls/server.crt
+        ClientTLSCert: /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/exam.com/orderers/orderer.exam.com/tls/server.crt
+        ServerTLSCert: /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/exam.com/orderers/orderer.exam.com/tls/server.crt
   BatchTimeout: 2s
   BatchSize:
     MaxMessageCount: 10

@@ -75,6 +75,7 @@ services:
       - ./fabric:/app/fabric
       - static_volume:/app/staticfiles
       - media_volume:/app/media
+      - /var/run/docker.sock:/var/run/docker.sock
 
   # ===================== Celery Worker =====================
   celery:
