@@ -1,3 +1,35 @@
+  快速部署步骤
+
+  最简单的方式：Docker 一键部署
+
+  # 1. 安装 Docker Desktop（从 docker.com 下载）
+
+  # 2. 复制项目文件夹到电脑
+
+  # 3. 打开终端，进入项目目录
+  cd blockchain-exam-system
+
+  # 4. 启动所有服务（首次约 5-10 分钟）
+  docker compose up -d
+
+  # 5. 初始化数据库
+  docker compose exec backend python manage.py migrate
+  docker compose exec backend python manage.py createsuperuser
+
+  # 6. 访问系统
+  # 前端: http://localhost:3000
+  # 后端: http://localhost:8000/admin/
+
+  预置账户
+
+  | 角色   | 用户名   | 密码         |
+  |--------|----------|--------------|
+  | 管理员 | admin    | Admin@123456 |
+  | 教师   | teacher1 | Teacher@123  |
+
+  ---
+
+
 # 🔐 区块链试卷加密系统
 
 基于 **Hyperledger Fabric** 区块链和**国密算法 (SM2/SM4)** 的安全试卷管理系统。
